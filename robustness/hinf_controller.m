@@ -1,6 +1,8 @@
 close all; clear all; clc;
 %% Calc settings
-num_iter = 2;
+num_iter = 5;
+Dscale_order = -1;
+gammaRange = [0.9, 10];
 
 %% Init model and Weights
 init_robust_simulink();
@@ -40,43 +42,54 @@ nw = size(Iw, 1);
 
 %% Start DK-iteration
 fprintf("Find nominal H_inf controller\n");
-K_inf = K_iteration_nominal(P, Ie, Iy, Iw, Iu);
+K_inf = K_iteration_nominal(P, Ie, Iy, Iw, Iu, gammaRange);
 fprintf("Plot Info about nominal controller\n");
 % 
 % load("K_lqr_controller.mat");
 % muinfo = PlotInfoController(P, K_lqr_ss, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, 10);
-muinfo = PlotInfoController(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, 0);
+[muinfo, gammaRP_nom] = PlotInfoController(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, 0);
 pause(0.1);
 % error("Test");
 
-Dl = tf(eye(6));
-Dr = tf(eye(6));
+K_inf_best = K_inf;
+gammaRP_best = gammaRP_nom;
+
+Dl = tf(eye(nz+ne));
+Dr = tf(eye(nz+ne));
+P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
 
 
 for i=1:num_iter
     fprintf("\nDK-iteration %i\n", i);
     N_inf = lft(P, K_inf);
     fprintf("Choose D scales\n");
-    [Dl_new, Dr_new] = chooseDscales(muinfo, N_inf, RP_blk, omega, Dl, nmeas, nctrl);
+    [Dl_new, Dr_new] = chooseDscales(Dl, muinfo, omega, Dscale_order);
     % Dl = Dl_new * Dl;
     % Dr = Dr * Dr_new;
     Dl = Dl_new;
     Dr = Dr_new;
     fprintf("Find controller for D scaled plant\n");
     try
-        K_inf = K_iteration(P, Dl, Dr, nz, ne, nmeas, nv, nw, nctrl);
+        K_inf = K_iteration(P_D, Dl, Dr, nz, ne, nmeas, nv, nw, nctrl, gammaRange);
     catch e
         fprintf("[Error]: %s\n", e.message);
         break;
     end
+    P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
 
     fprintf("Plot Info about controller\n");
-    muinfo = PlotInfoController(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, i);
+    [muinfo, gammaRP] = PlotInfoController(P_D, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, i);
+    if gammaRP < gammaRP_best
+        fprintf("Better controller found\n");
+        gammaRP_best = gammaRP;
+        K_inf_best = K_inf;
+    end
     pause(0.1);
 end
 
 fprintf("Saving results to file\n");
-saveControllerToFile(K_inf);
+saveControllerToFile(K_inf_best);
+fprintf("Best gammaRP = %f\n", gammaRP_best);
 fprintf("Done\n");
 
 function saveControllerToFile(K_inf)
@@ -97,7 +110,7 @@ function addWeightToPlot(weight, freqs, name)
     end
 end
 
-function muinfoRP = plotSSV(N, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, iter)
+function [muinfoRP, gammaRP] = plotSSV(N, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, iter)
     N_w = frd(N, omega);
     muRS = mussv(N_w(Iz, Iv), RS_blk);
     muNP = svd(N_w(Ie, Iw));
@@ -118,239 +131,139 @@ function muinfoRP = plotSSV(N, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, iter)
 
     worst_muRP = max(u_muRP.ResponseData(1, 1, :));
     fprintf("Worst muRP upper bound: %f, iter: %i\n", worst_muRP, iter);
+    gammaRP = worst_muRP;
 end
 
-function [Dl, Dr] = chooseDscales(muInfo, N_inf, RP_blk, omega, Dl_prev, nmeas, nctrl)
+function [Dl, Dr] = chooseDscales(Dl_prev, muInfo, omega, order)
     % Ddata = muInfo.dvec;
     % sens = muInfo.sens;
     % blk = muInfo.blk;
     % [Dl, Dr] = musynflp(Dl_prev, Ddata, sens, blk, nmeas, nctrl);
     % return;
 
-    [Dl0, Dr0] = mussvunwrap(muInfo); % Extract D-scales
+    [Dl_w, Dr_w] = mussvunwrap(muInfo); % Extract D-scales
+    % Dl_prev_w = frd(Dl_prev, omega);
+    % Dl_w = Dl_w * Dl_prev_w;
     
-    D0_perf = Dl0(3, 3);
-    D0_1 = Dl0(1, 1)/D0_perf;
-    D0_2 = Dl0(2, 2)/D0_perf;
-    
-    D0_1a = fitfrd(genphase(D0_1), 0);
-    D0_1b = fitfrd(genphase(D0_1), 1);
-    D0_1c = fitfrd(genphase(D0_1), 2);
-    D0_1d = fitfrd(genphase(D0_1), 3);
+    D_perf = Dl_w(size(Dl_w, 1), size(Dl_w, 2));
+    D_1 = Dl_w(1, 1);
+    D_2 = Dl_w(2, 2);
+    D_3 = Dl_w(3, 3);
 
-    D0_2a = fitfrd(genphase(D0_2), 0);
-    D0_2b = fitfrd(genphase(D0_2), 1);
-    D0_2c = fitfrd(genphase(D0_2), 2);
-    D0_2d = fitfrd(genphase(D0_2), 3);
-    
-    fig_val = figure;
-    hold on;
-    plot(D0_1);
-    plot(abs(frd(D0_1a, omega)));
-    plot(abs(frd(D0_1b, omega)));
-    plot(abs(frd(D0_1c, omega)));
-    plot(abs(frd(D0_1d, omega)));
-    legend(["D0_1", "0", "1", "2", "3"]);
-    % plot(D0_2);
-    % plot(D0_perf);
-    xscale log;
-    yscale log;
-    
-    D_scale_base = [D0_1, zeros(1, 5);
-                0, D0_2, zeros(1, 4);
-                zeros(4, 2), eye(4)];
-    
-    D_scale_inv_base = [1/D0_1, zeros(1, 5);
-                     0, 1/D0_2, zeros(1, 4);
-                     zeros(4, 2), eye(4)];
+    D_1_fit = fitAndChooseDScale(D_1, omega, order);
+    D_2_fit = fitAndChooseDScale(D_2, omega, order);
+    D_3_fit = fitAndChooseDScale(D_3, omega, order);
+    D_p_fit = fitAndChooseDScale(D_perf, omega, order);
 
-    
-    D_scale_a = D_scale_base;
-    D_scale_a(1, 1) = D0_1a;
-    D_scale_inv_a = D_scale_inv_base;
-    D_scale_inv_a(1, 1) = 1/D0_1a;
-    N_D_a = D_scale_a * N_inf * D_scale_inv_a;
+    Dl = [D_1_fit, 0, 0, 0, 0, 0, 0;
+          0, D_2_fit, 0, 0, 0, 0, 0;
+          0, 0, D_3_fit, 0, 0, 0, 0;
+          0, 0, 0, D_p_fit, 0, 0, 0;
+          0, 0, 0, 0, D_p_fit, 0, 0;
+          0, 0, 0, 0, 0, D_p_fit, 0;
+          0, 0, 0, 0, 0, 0, D_p_fit];
+    Dr = [1/D_1_fit, 0, 0, 0, 0, 0, 0;
+          0, 1/D_2_fit, 0, 0, 0, 0, 0;
+          0, 0, 1/D_3_fit, 0, 0, 0, 0;
+          0, 0, 0, 1/D_p_fit, 0, 0, 0;
+          0, 0, 0, 0, 1/D_p_fit, 0, 0;
+          0, 0, 0, 0, 0, 1/D_p_fit, 0;
+          0, 0, 0, 0, 0, 0, 1/D_p_fit];
 
-    D_scale_b = D_scale_base;
-    D_scale_b(1, 1) = D0_1b;
-    D_scale_inv_b = D_scale_inv_base;
-    D_scale_inv_b(1, 1) = 1/D0_1b;
-    N_D_b = D_scale_b * N_inf * D_scale_inv_b;
+    % Dl = [D_1_fit, 0, 0, 0, 0, 0;
+    %       0, D_2_fit, 0, 0, 0, 0;
+    %       0, 0, D_p_fit, 0, 0, 0;
+    %       0, 0, 0, D_p_fit, 0, 0;
+    %       0, 0, 0, 0, D_p_fit, 0;
+    %       0, 0, 0, 0, 0, D_p_fit];
+    % Dr = [1/D_1_fit, 0, 0, 0, 0, 0;
+    %       0, 1/D_2_fit, 0, 0, 0, 0;
+    %       0, 0, 1/D_p_fit, 0, 0, 0;
+    %       0, 0, 0, 1/D_p_fit, 0, 0;
+    %       0, 0, 0, 0, 1/D_p_fit, 0;
+    %       0, 0, 0, 0, 0, 1/D_p_fit];
 
-    D_scale_c = D_scale_base;
-    D_scale_c(1, 1) = D0_1c;
-    D_scale_inv_c = D_scale_inv_base;
-    D_scale_inv_c(1, 1) = 1/D0_1c;
-    N_D_c = D_scale_c * N_inf * D_scale_inv_c;
-
-    D_scale_d = D_scale_base;
-    D_scale_d(1, 1) = D0_1d;
-    D_scale_inv_d = D_scale_inv_base;
-    D_scale_inv_d(1, 1) = 1/D0_1d;
-    N_D_d = D_scale_d * N_inf * D_scale_inv_d;
-
-    N_inf_w = frd(N_inf, omega);
-    % muRP = mussv(N_inf_w, RP_blk);
-    % 
-    % % N_D_a_w = frd(N_D_a, omega);
-    % muRPa = mussv(N_D_a, RP_blk);
-    % 
-    % % N_D_b_w = frd(N_D_b, omega);
-    % muRPb = mussv(N_D_b, RP_blk);
-    % 
-    % % N_D_c_w = frd(N_D_c, omega);
-    % muRPc = mussv(N_D_c, RP_blk);
-    % 
-    % % N_D_d_w = frd(N_D_d, omega);
-    % muRPd = mussv(N_D_d, RP_blk);
-    % 
-    % fig1 = figure();
-    % hold on;
-    % plot(muRP(1, 1, :));
-    % plot(muRPa(1, 1, :));
-    % plot(muRPb(1, 1, :));
-    % plot(muRPc(1, 1, :));
-    % plot(muRPd(1, 1, :));
-    % legend(["Exact", "0", "1", "2", "3"]);
-    % xscale log;
-
-    % figure(fig1);
-    figure(fig_val);
-    choosenOrder = input("Choose the order of the D scale. i.e 0, 1, 2, 3: ");
-    % close(fig1);
-    close(fig_val);
-    if choosenOrder == 0
-        fprintf("Order 0 chosen\n")
-        D1_chosed = D0_1a;
-        D_scale_base = D_scale_a;
-        D_scale_inv_base = D_scale_inv_a;
-    elseif choosenOrder == 1
-        fprintf("Order 1 chosen\n")
-        D1_chosed = D0_1b;
-        D_scale_base = D_scale_b;
-        D_scale_inv_base = D_scale_inv_b;
-    elseif choosenOrder == 2
-        fprintf("Order 2 chosen\n")
-        D1_chosed = D0_1c;
-        D_scale_base = D_scale_c;
-        D_scale_inv_base = D_scale_inv_c;
-    elseif choosenOrder == 3
-        fprintf("Order 3 chosen\n")
-        D1_chosed = D0_1d;
-        D_scale_base = D_scale_d;
-        D_scale_inv_base = D_scale_inv_d;
-    else
-        error("invalid order chosen for D scales");
-    end
-    
-    D_scale_a = D_scale_base;
-    D_scale_a(2, 2) = D0_2a;
-    D_scale_inv_a = D_scale_inv_base;
-    D_scale_inv_a(2, 2) = 1/D0_2a;
-    N_D_a = D_scale_a * N_inf * D_scale_inv_a;
-
-    D_scale_b = D_scale_base;
-    D_scale_b(2, 2) = D0_2b;
-    D_scale_inv_b = D_scale_inv_base;
-    D_scale_inv_b(2, 2) = 1/D0_2b;
-    N_D_b = D_scale_b * N_inf * D_scale_inv_b;
-
-    D_scale_c = D_scale_base;
-    D_scale_c(2, 2) = D0_2c;
-    D_scale_inv_c = D_scale_inv_base;
-    D_scale_inv_c(2, 2) = 1/D0_2c;
-    N_D_c = D_scale_c * N_inf * D_scale_inv_c;
-
-    D_scale_d = D_scale_base;
-    D_scale_d(2, 2) = D0_2d;
-    D_scale_inv_d = D_scale_inv_base;
-    D_scale_inv_d(2, 2) = 1/D0_2d;
-    N_D_d = D_scale_d * N_inf * D_scale_inv_d;
-
-    N_inf_w = frd(N_inf, omega);
-    % muRP = mussv(N_inf_w, RP_blk);
-    % 
-    % % N_D_a_w = frd(N_D_a, omega);
-    % muRPa = mussv(N_D_a, RP_blk);
-    % 
-    % % N_D_b_w = frd(N_D_b, omega);
-    % muRPb = mussv(N_D_b, RP_blk);
-    % 
-    % % N_D_c_w = frd(N_D_c, omega);
-    % muRPc = mussv(N_D_c, RP_blk);
-    % 
-    % % N_D_d_w = frd(N_D_d, omega);
-    % muRPd = mussv(N_D_d, RP_blk);
-    % 
-    % fig2 = figure;
-    % hold on;
-    % plot(muRP(1, 1, :));
-    % plot(muRPa(1, 1, :));
-    % plot(muRPb(1, 1, :));
-    % plot(muRPc(1, 1, :));
-    % plot(muRPd(1, 1, :));
-    % legend(["Exact", "0", "1", "2", "3"]);
-    % xscale log;
-
-    fig2_val = figure;
-    hold on;
-    plot(D0_2);
-    plot(abs(frd(D0_2a, omega)));
-    plot(abs(frd(D0_2b, omega)));
-    plot(abs(frd(D0_2c, omega)));
-    plot(abs(frd(D0_2d, omega)));
-    legend(["D0_2", "0", "1", "2", "3"]);
-    % plot(D0_2);
-    % plot(D0_perf);
-    xscale log;
-    yscale log;
-
-    % figure(fig2);
-    figure(fig2_val);
-    choosenOrder = input("Choose the order of the D scale. i.e 0, 1, 2, 3: ");
-    % close(fig2);
-    close(fig2_val);
-    if choosenOrder == 0
-        fprintf("Order 0 chosen\n")
-        D2_chosed = D0_2a;
-        D_scale_base(2, 2) = D_scale_a(2, 2);
-        D_scale_inv_base(2, 2) = D_scale_inv_a(2, 2);
-    elseif choosenOrder == 1
-        fprintf("Order 1 chosen\n")
-        D2_chosed = D0_2b;
-        D_scale_base(2, 2) = D_scale_b(2, 2);
-        D_scale_inv_base(2, 2) = D_scale_inv_b(2, 2);
-    elseif choosenOrder == 2
-        fprintf("Order 2 chosen\n")
-        D2_chosed = D0_2c;
-        D_scale_base(2, 2) = D_scale_c(2, 2);
-        D_scale_inv_base(2, 2) = D_scale_inv_c(2, 2);
-    elseif choosenOrder == 3
-        fprintf("Order 3 chosen\n")
-        D2_chosed = D0_2d;
-        D_scale_base(2, 2) = D_scale_d(2, 2);
-        D_scale_inv_base(2, 2) = D_scale_inv_d(2, 2);
-    else
-        error("invalid order chosen for D scales");
-    end
-
-    
-    Dl = [D1_chosed, zeros(1, 5);
-          0, D2_chosed, zeros(1, 4);
-          zeros(4, 2), eye(4);];
-    Dr = [1/D1_chosed, zeros(1, 5);
-          0, 1/D2_chosed, zeros(1, 4);
-          zeros(4, 2), eye(4);];
+    % Dl = [D_1_fit, 0, 0, 0, 0, 0;
+    %       0, D_2_fit, 0, 0, 0, 0;
+    %       zeros(4, 2), eye(4)];
+    % Dr = [1/D_1_fit, 0, 0, 0, 0, 0;
+    %       0, 1/D_2_fit, 0, 0, 0, 0;
+    %       zeros(4, 2), eye(4)];
+    % Dl = [D_1_fit, 0, 0, 0, 0, 0, 0;
+    %       0, D_2_fit, 0, 0, 0, 0, 0;
+    %       0, 0, D_3_fit, 0, 0, 0, 0;
+    %       zeros(4, 3), eye(4)];
+    % Dr = [1/D_1_fit, 0, 0, 0, 0, 0, 0;
+    %       0, 1/D_2_fit, 0, 0, 0, 0, 0;
+    %       0, 0, 1/D_3_fit, 0, 0, 0, 0;
+    %       zeros(4, 3), eye(4)];
 end
 
-function K_inf = K_iteration_nominal(P, Ie, Iy, Iw, Iu)
+function D_i = fitAndChooseDScale(D_frd, omega, order)
+    D_a = fitfrd(genphase(D_frd), 0);
+    D_b = fitfrd(genphase(D_frd), 1);
+    D_c = fitfrd(genphase(D_frd), 2);
+    D_d = fitfrd(genphase(D_frd), 3);
+    
+    if order == -1
+        fig_val = figure;
+        hold on;
+        plot(D_frd);
+        plot(abs(frd(D_a, omega)));
+        plot(abs(frd(D_b, omega)));
+        plot(abs(frd(D_c, omega)));
+        plot(abs(frd(D_d, omega)));
+        legend(["Exact", "0", "1", "2", "3"]);
+        xscale log;
+        yscale log;
+        
+        figure(fig_val);
+    
+        choosenOrder = input("Choose the order of the D scale. i.e 0, 1, 2, 3: ");
+        close(fig_val);
+    else
+        choosenOrder = order;
+    end
+    % close(fig1);
+    
+    if choosenOrder == 0
+        fprintf("Order 0 chosen\n")
+        D_i = D_a;
+    elseif choosenOrder == 1
+        fprintf("Order 1 chosen\n")
+        D_i = D_b;
+    elseif choosenOrder == 2
+        fprintf("Order 2 chosen\n")
+        D_i = D_c;
+    elseif choosenOrder == 3
+        fprintf("Order 3 chosen\n")
+        D_i = D_d;
+    elseif choosenOrder > 3
+        D_i = fitfrd(genphase(D_frd), choosenOrder);
+        fprintf("Order %i chosen\n", choosenOrder);
+    else
+        error("invalid order chosen for D scales");
+    end
+
+end
+
+function P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl)
+    P_D = [Dl, zeros(nz+ne, nmeas);
+                  zeros(nmeas, nz+ne), eye(nmeas)] ...
+                  * P * ...
+                 [Dr, zeros(nv+nw, nctrl);
+                 zeros(nctrl, nv+nw), eye(nctrl)];
+end
+
+function K_inf = K_iteration_nominal(P, Ie, Iy, Iw, Iu, gammaRange)
     nmeas = size(Iy, 1);
     nctrl = size(Iu, 1);
     
     
     P_nom = P([Ie;Iy], [Iw;Iu]);
     P_nom = P;
-    [K_inf, N_inf_unused, gamma, info] = hinfsyn(P_nom, nmeas, nctrl); %, ...
+    options = hinfsynOptions("Display", "on", "Method", "RIC");
+    [K_inf, N_inf_unused, gamma, info] = hinfsyn(P_nom, nmeas, nctrl, options); %, ...
                                           % "METHOD", "ric", ...
                                           % "TOLGAM", 0.1); 
     if isnan(gamma)
@@ -359,14 +272,15 @@ function K_inf = K_iteration_nominal(P, Ie, Iy, Iw, Iu)
     end    
 end
 
-function K_inf = K_iteration(P, Dl, Dr, nz, ne, nmeas, nv, nw, nctrl)
-    Pmu1design = [Dl, zeros(nz+ne, nmeas);
-                  zeros(nmeas, nz+ne), eye(nmeas)] ...
-                  * P * ...
-                 [Dr, zeros(nv+nw, nctrl);
-                 zeros(nctrl, nv+nw), eye(nctrl)];
-    
-    [K_inf, N_inf_unused, gamma, info] = hinfsyn(Pmu1design, nmeas, nctrl); %, ...
+function K_inf = K_iteration(P, Dl, Dr, nz, ne, nmeas, nv, nw, nctrl, gammaRange)
+    % Pmu1design = [Dl, zeros(nz+ne, nmeas);
+    %               zeros(nmeas, nz+ne), eye(nmeas)] ...
+    %               * P * ...
+    %              [Dr, zeros(nv+nw, nctrl);
+    %              zeros(nctrl, nv+nw), eye(nctrl)];
+    Pmu1design = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
+    options = hinfsynOptions("Display", "on", "Method", "RIC");
+    [K_inf, N_inf_unused, gamma, info] = hinfsyn(Pmu1design, nmeas, nctrl, options); %, ...
                                           % "METHOD", "lmi", ...
                                           % "TOLGAM", 0.1);
     if isinf(gamma) || isnan(gamma)
@@ -375,30 +289,8 @@ function K_inf = K_iteration(P, Dl, Dr, nz, ne, nmeas, nv, nw, nctrl)
     end
 end
 
-function muinfoRP = PlotInfoController(P, K, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, iter)
-    K = K; % Used in simulink
-    % [A_Pc, B_Pc, C_Pc, D_Pc] = linmod("robust_model_closed_loop");
-    % Pc = ss(A_Pc, B_Pc, C_Pc, D_Pc);
-    % 
-    % Icz = (1:2)';
-    % Icw = (3:6)';
-    % 
-    % Icv = (1:2)';
-    % Ice = (3:4)';
-    % Icy = (5:6)';
-    % 
-    % y_r = Pc(Icy(2), Icw(2));
-    % y_r = minreal(y_r);
-    % figure;
-    % step(y_r);
-    % 
-    % u_r = Pc(Ice(2), Icw(2));
-    % u_r = minreal(u_r);
-    % figure;
-    % step(u_r);
-    
-    % Singular vlues
+function [muinfoRP, gammaRP] = PlotInfoController(P, K, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, iter)
     N_inf = lft(P, K);
 
-    muinfoRP = plotSSV(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, iter);
+    [muinfoRP, gammaRP] = plotSSV(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, iter);
 end

@@ -17,13 +17,13 @@ K_sim = K_lqr_ss;
 [A, B, C, D] = linmod("robust_model_closed_loop");
 P_lqr = ss(A, B, C, D);
 
-% Outputs
-Iz = (1:2)'; % Connected to perturbation blocks
-Ie = (3:6)'; % Error signals
-
-% Inputs
-Iv = (1:2)'; % Input Perturbation
-Iw = (3:6)'; % Distrubrances and noise
+% % Outputs
+% Iz = (1:2)'; % Connected to perturbation blocks
+% Ie = (3:6)'; % Error signals
+% 
+% % Inputs
+% Iv = (1:2)'; % Input Perturbation
+% Iw = (3:6)'; % Distrubrances and noise
 
 P_inf_nom = P_inf(Ie, Iw);
 P_lqr_nom = P_lqr(Ie, Iw);
@@ -32,44 +32,12 @@ P_lqr_nom = P_lqr(Ie, Iw);
 t = 0:0.1:40;
 figure("Name", "Elev Inf nom");
 plotElevationStep(P_inf_nom, t);
-% figure("Name", "Elev LQR nom");
-% plotElevationStep(P_lqr_nom, t);
+figure("Name", "Elev LQR nom");
+plotElevationStep(P_lqr_nom, t);
 figure("Name", "Pitch Inf nom");
 plotPitchStep(P_inf_nom, t);
-% figure("Name", "Pitch LQR nom");
-% plotPitchStep(P_lqr_nom, t);
-% u = [ones(1, size(t, 2));
-%      zeros(3, size(t, 2))];
-% 
-% y_inf = lsim(P_inf_nom, u, t);
-% y_lqr = lsim(P_lqr_nom, u, t);
-% 
-% e_inf = y_inf(:, 3);
-% e_lqr = y_lqr(:, 3);
-% figure("Name", "Nominal elevation step");
-% % lsim(P_nom, u, t);
-% plot(t, e_inf, "DisplayName", "Inf");
-% hold on;
-% plot(t, e_lqr, "DisplayName", "LQR");
-% grid on;
-% legend();
-% 
-% u = [zeros(1, size(t, 2));
-%      max_p_ref*ones(1, size(t, 2));
-%      zeros(2, size(t, 2))];
-% 
-% y_inf = lsim(P_inf_nom, u, t);
-% y_lqr = lsim(P_lqr_nom, u, t);
-% p_inf = y_inf(:, 4);
-% p_lqr = y_lqr(:, 4);
-% figure("Name", "Nominal pitch step");
-% % lsim(P_nom, u, t);
-% grid on;
-% hold on;
-% plot(t, p_inf, "DisplayName", "Inf");
-% plot(t, p_lqr, "DisplayName", "LQR");
-% plot(t, u(2, :), "k--", "DisplayName", "p_{ref}");
-% legend();
+figure("Name", "Pitch LQR nom");
+plotPitchStep(P_lqr_nom, t);
 
 %% Worst case
 
@@ -77,22 +45,24 @@ plotPitchStep(P_inf_nom, t);
 [A_o, B_o, C_o, D_o] = linmod("robust_model");
 P_o = ss(A_o, B_o, C_o, D_o);
 
-Delta_wc_inf = getWorstCasePerturbation(P_o, K_inf, omega, RP_blk);
-Delta_wc_lqr = getWorstCasePerturbation(P_o, K_lqr_ss, omega, RP_blk);
+[Delta_wc_inf, maxmu_inf] = getWorstCasePerturbation(P_o, K_inf, omega, RP_blk);
+[Delta_wc_lqr, maxmu_lqr] = getWorstCasePerturbation(P_o, K_lqr_ss, omega, RP_blk);
+
+fprintf("Max mu inf: %f,\n Max mu lqr: %f\n", maxmu_inf, maxmu_lqr);
 
 P_inf_pert = lft(Delta_wc_inf, P_inf);
 P_lqr_pert = lft(Delta_wc_lqr, P_lqr);
 
 figure("Name", "Elev inf pert");
 plotElevationStep(P_inf_pert, t);
-% figure("Name", "Elev LQR pert");
-% plotElevationStep(P_lqr_pert, t);
+figure("Name", "Elev LQR pert");
+plotElevationStep(P_lqr_pert, t);
 figure("Name", "Pitch inf pert");
 plotPitchStep(P_inf_pert, t);
-% figure("Name", "Pitch LQR pert");
-% plotPitchStep(P_lqr_pert, t);
+figure("Name", "Pitch LQR pert");
+plotPitchStep(P_lqr_pert, t);
 
-function [Delta_wc] = getWorstCasePerturbation(P, K, omega, RP_blk)
+function [Delta_wc, maxmu] = getWorstCasePerturbation(P, K, omega, RP_blk)
     N = lft(P, K);
     N_w = frd(N, omega);
     [muRP, muinfoRP] = mussv(N_w, RP_blk);
