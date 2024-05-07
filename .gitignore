@@ -2,3 +2,4 @@ export_fig/
 **/generated/
 **/slprj/
 **/*.slxc
+**/*.asv
