@@ -8,31 +8,55 @@ load alternative_linearized_system.mat
 M_inv_alt = inv(M_alt);
 F_alt = 0*M_alt*diag([-0.1, -0.1]);
 
-Q_M = lftForMInv(M_alt, 0, 0.3);
-
 tau_act = 0.2;
 G_act = 1/(s*tau_act+1); % Used in simulink
+
+Q_M = lftForMInv(M_alt, 0, 0.2);
 
 cutoff_freq_perf = 1e-2;
 max_e_deav = 0.2;
 max_p_deav = deg2rad(0.5);
 max_u = 1000;
 max_e_ref = 1;
-max_p_ref = deg2rad(10);
+max_p_ref = deg2rad(45);
 W_perf_e = makeStepFilter(1/max_e_deav, cutoff_freq_perf, 1e-5);
 W_perf_p = makeStepFilter(1/max_p_deav, cutoff_freq_perf, 1e-5);
 % W_perf_e = makeLowpassFilter(1e-1, 1e1);
 % W_perf_uf = makeStepFilter(1/max_u, cutoff_freq_perf*1e2, 1e0);
 W_perf_uf = tf(1/max_u);
 W_perf_ub = W_perf_uf;
-W_act = makeStepFilter(0.2, 1e2, 0.9);
+W_act = makeStepFilter(0.25, 1e2, 0.9);
 % W_act = tf(0.2);
-max_noise_e = 0.01;
+max_noise_e = 0.1;
 max_noise_p = deg2rad(0.1);
 W_noise_e = tf(max_noise_e);
 W_noise_p = tf(max_noise_p);
 W_ref_e = tf(max_e_ref);
 W_ref_p = tf(max_p_ref);
+
+%% Know to work...
+% Q_M = lftForMInv(M_alt, 0, 0.3);
+% 
+% cutoff_freq_perf = 1e-2;
+% max_e_deav = 0.2;
+% max_p_deav = deg2rad(0.5);
+% max_u = 1000;
+% max_e_ref = 1;
+% max_p_ref = deg2rad(10);
+% W_perf_e = makeStepFilter(1/max_e_deav, cutoff_freq_perf, 1e-5);
+% W_perf_p = makeStepFilter(1/max_p_deav, cutoff_freq_perf, 1e-5);
+% % W_perf_e = makeLowpassFilter(1e-1, 1e1);
+% % W_perf_uf = makeStepFilter(1/max_u, cutoff_freq_perf*1e2, 1e0);
+% W_perf_uf = tf(1/max_u);
+% W_perf_ub = W_perf_uf;
+% W_act = makeStepFilter(0.2, 1e2, 0.9);
+% % W_act = tf(0.2);
+% max_noise_e = 0.01;
+% max_noise_p = deg2rad(0.1);
+% W_noise_e = tf(max_noise_e);
+% W_noise_p = tf(max_noise_p);
+% W_ref_e = tf(max_e_ref);
+% W_ref_p = tf(max_p_ref);
 
 
 % Outputs

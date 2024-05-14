@@ -32,12 +32,13 @@ P_lqr_nom = P_lqr(Ie, Iw);
 t = 0:0.1:40;
 figure("Name", "Elev Inf nom");
 plotElevationStep(P_inf_nom, t);
-figure("Name", "Elev LQR nom");
-plotElevationStep(P_lqr_nom, t);
+% figure("Name", "Elev LQR nom");
+% plotElevationStep(P_lqr_nom, t);
 figure("Name", "Pitch Inf nom");
 plotPitchStep(P_inf_nom, t);
-figure("Name", "Pitch LQR nom");
-plotPitchStep(P_lqr_nom, t);
+% figure("Name", "Pitch LQR nom");
+% plotPitchStep(P_lqr_nom, t);
+pause(0.1);
 
 %% Worst case
 
@@ -45,10 +46,11 @@ plotPitchStep(P_lqr_nom, t);
 [A_o, B_o, C_o, D_o] = linmod("robust_model");
 P_o = ss(A_o, B_o, C_o, D_o);
 
-[Delta_wc_inf, maxmu_inf] = getWorstCasePerturbation(P_o, K_inf, omega, RP_blk);
-[Delta_wc_lqr, maxmu_lqr] = getWorstCasePerturbation(P_o, K_lqr_ss, omega, RP_blk);
+[Delta_wc_inf, maxmu_inf, maxmuRS_inf] = getWorstCasePerturbation(P_o, K_inf, omega, RP_blk, Iz, Iv);
+[Delta_wc_lqr, maxmu_lqr, maxmuRS_lqr] = getWorstCasePerturbation(P_o, K_lqr_ss, omega, RP_blk, Iz, Iv);
 
-fprintf("Max mu inf: %f,\n Max mu lqr: %f\n", maxmu_inf, maxmu_lqr);
+fprintf("Max muRP inf: %f,\nMax muRP lqr: %f\n", maxmu_inf, maxmu_lqr);
+fprintf("Max muRS inf: %f,\nMax muRS lqr: %f\n", maxmuRS_inf, maxmuRS_lqr);
 
 P_inf_pert = lft(Delta_wc_inf, P_inf);
 P_lqr_pert = lft(Delta_wc_lqr, P_lqr);
@@ -62,12 +64,20 @@ plotPitchStep(P_inf_pert, t);
 figure("Name", "Pitch LQR pert");
 plotPitchStep(P_lqr_pert, t);
 
-function [Delta_wc, maxmu] = getWorstCasePerturbation(P, K, omega, RP_blk)
+function [Delta_wc, maxmuRP, maxmuRS] = getWorstCasePerturbation(P, K, omega, RP_blk, Iz, Iv)
     N = lft(P, K);
     N_w = frd(N, omega);
     [muRP, muinfoRP] = mussv(N_w, RP_blk);
+    RS_blk = RP_blk(1:end-1, :);
+    muRS = mussv(N_w(Iz, Iv), RS_blk);
+    muRSdata = frdata(muRS);
+    maxmuRS = max(muRSdata(1, 1, :));
 
-    mudata = frdata(muRP);
+    muRPdata = frdata(muRP);
+    maxmuRP = max(muRPdata(1, 1, :));
+
+    % mudata = muRPdata;
+    mudata = muRSdata;
     maxmu = max(mudata(1, 1, :));
     maxidx = find(maxmu == mudata(1, 1, :));
     maxidx = maxidx(1);
