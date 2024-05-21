@@ -9,7 +9,7 @@ init_robust_simulink();
 
 
 %% Plot Weights
-figure("Name", "Weights");
+fig = figure("Name", "Weights");
 hold on;
 addWeightToPlot(W_perf_e, omega, "W_perf_e");
 addWeightToPlot(W_perf_p, omega, "W_perf_p");
@@ -25,6 +25,15 @@ yscale log;
 xscale log;
 grid on;
 legend();
+
+external_monitor = 1;
+
+std_dims = [50 800 600 500];
+if external_monitor == 1
+    std_dims(2) = 1200;
+end
+set(fig, "renderer", "painters", "position", std_dims, "PaperPositionMode", "auto");
+exportgraphics(fig,"./figures/perf_weight.pdf",'ContentType','vector');
 pause(0.1);
 
 %% Model
