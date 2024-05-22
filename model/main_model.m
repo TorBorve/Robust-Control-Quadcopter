@@ -1,4 +1,4 @@
-close all; clear all; clc;
+function main_model()
 
 e = sym("e", "real");
 p = sym("p", "real");
@@ -54,6 +54,8 @@ tau_lin = jacobian(eom.tau, F_ext);
 tau_lin = subs(tau_lin, [x; u], [x0; u0]);
 
 write_alternative_form_to_file(M_lin, E, tau_lin, params, params_val);
+
+end
 
 
 

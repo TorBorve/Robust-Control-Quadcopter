@@ -1,6 +1,8 @@
-close all; clear all; clc;
-
 %% Init Model and weights
+FIG_PATH = "./figures";
+if ~exist(FIG_PATH, "dir")
+    mkdir(FIG_PATH);
+end
 init_robust_simulink();
 
 %% Load controller
@@ -10,23 +12,19 @@ load("K_lqr_controller.mat");
 % K_inf closed loop
 K_sim = K_inf;
 [A, B, C, D] = linmod("robust_model_closed_loop");
-P_inf = ss(A, B, C, D);
+P_inf = ss(A, B, C, D); 
 
 % LQR closed loop
 K_sim = K_lqr_ss;
 [A, B, C, D] = linmod("robust_model_closed_loop");
 P_lqr = ss(A, B, C, D);
 
-% % Outputs
-% Iz = (1:2)'; % Connected to perturbation blocks
-% Ie = (3:6)'; % Error signals
-% 
-% % Inputs
-% Iv = (1:2)'; % Input Perturbation
-% Iw = (3:6)'; % Distrubrances and noise
 
 P_inf_nom = P_inf(Ie, Iw);
 P_lqr_nom = P_lqr(Ie, Iw);
+
+%% SSV Plots
+
 
 %% Step ref elevation;
 t = 0:0.1:40;
@@ -163,3 +161,4 @@ function formatStepRespFig()
     grid on;
     legend();
 end
+
