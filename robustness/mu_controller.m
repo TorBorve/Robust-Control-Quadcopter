@@ -1,20 +1,21 @@
 %% Calc settings
-clear all; close all; clc;
-num_iter = 10;
-Dscale_orders_seq = [1, 3, 2, 1;
-                 1, 1, 2, 1];
+clear all; close all;
+num_iter = 3;
+% Dscale_orders_seq = [1, 3, 2, 1;
+%                  1, 1, 2, 1];
+% num_iter = size(Dscale_orders_seq, 1);
 
-% Dscale_orders_seq = [];
-% for i1=0:4
-%     for i2=0:4
-%         for i3=0:4
-%             for i4=0:4
-%                 Dscale_orders_seq = [Dscale_orders_seq;
-%                                      i4, i3, i2, i1];
-%             end
-%         end
-%     end
-% end
+Dscale_orders_seq = [];
+for i1=0:4
+    for i2=0:4
+        for i3=0:4
+            for i4=0:4
+                Dscale_orders_seq = [Dscale_orders_seq;
+                                     i1, i2, i3, i4];
+            end
+        end
+    end
+end
 % external_monitor = 1;
 % 
 % std_dims = [50 800 600 500];
@@ -57,47 +58,64 @@ pause(0.1);
 
 K_inf_iters = {K_inf};
 K_inf_best = K_inf;
+muinfo_best = muinfo;
 gammaRP_best = gammaRP_nom;
 
-% if exist("Dscale_orders_seq", "var")
-%     num_iter = size(Dscale_orders_seq, 1);
-% end
-js = [];
+orders_best = [];
 
 for i=1:num_iter
     fprintf("\nDK-iteration %i\n", i);
-    N_inf = lft(P, K_inf);
-    fprintf("Choose D scales\n");
-    if exist("Dscale_orders_seq", "var") && size(Dscale_orders_seq, 2) >= i
-        Dscale_orders = Dscale_orders_seq(i, :);
-    else
-        Dscale_orders = [-1, -1, -1, -1];
-    end
-    [Dl, Dr] = chooseDscales(muinfo, omega, Dscale_orders);
-    P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
-    fprintf("Find controller for D scaled plant\n");
-
-    try
-        K_inf = K_iteration(P_D, nmeas, nctrl);
-    catch e
-        fprintf("[Error]: %s\n", e.message);
-        continue;
-        % break;
-    end
-
-    fprintf("Plot Info about controller\n");
-    [muinfo, gammaRP] = calculate_and_plot_ssv(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, i);
+    better_found = 0;
+    j_best = 1;
+    % for j=1:size(Dscale_orders_seq, 1)
+        K_inf = K_inf_best;
+        muinfo = muinfo_best;
+        N_inf = lft(P, K_inf);
+        fprintf("Choose D scales\n");
+        % if exist("Dscale_orders_seq", "var") && size(Dscale_orders_seq, 1) >= i
+        %     Dscale_orders = Dscale_orders_seq(j, :);
+        % else
+        %     Dscale_orders = [-1, -1, -1, -1];
+        % end
+        Dscale_orders = [0, 0, 2, 0];
+        [Dl, Dr] = chooseDscales(muinfo, omega, Dscale_orders);
+        P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
+        fprintf("Find controller for D scaled plant\n");
     
-    if gammaRP < gammaRP_best
-        fprintf("Better controller found\n");
-        K_inf_iters = [K_inf_iters ; {K_inf}];
-        gammaRP_best = gammaRP;
-        K_inf_best = K_inf;
+        try
+            K_inf = K_iteration(P_D, nmeas, nctrl);
+        catch e
+            fprintf("[Error]: %s\n", e.message);
+            K_inf = K_inf_best;
+            muinfo = muinfo_best;
+            continue;
+            % break;
+        end
+    
+        fprintf("Plot Info about controller\n");
+        [muinfo, gammaRP] = calculate_and_plot_ssv(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, i);
+        
+        if gammaRP < gammaRP_best
+            fprintf("Better controller found\n");
+            K_inf_iters = [K_inf_iters ; {K_inf}];
+            gammaRP_best = gammaRP;
+            muinfo_best = muinfo;
+            K_inf_best = K_inf;
+            better_found = 1;
+            j_best = j;
+        end
+        muinfo = muinfo_best;
+        K_inf = K_inf_best;
+    % end
+    if better_found == 0
+        break
     end
-    K_inf = K_inf_best;
+    % orders_best = [orders_best;
+    %                 Dscale_orders_seq(j_best, :)];
     pause(0.1);
 end
 
+orders_best
 fprintf("Saving results to file\n");
 saveControllerToFile(K_inf_best, K_inf_iters);
 fprintf("Best gammaRP = %f\n", gammaRP_best);
@@ -238,7 +256,7 @@ end
 
 function [muinfoRP, gammaRP] = calculate_and_plot_ssv(P, K, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, iter)
     N_inf = lft(P, K);
-    fig = figure("Name", sprintf("SSV Iter: %i", iter));
-    [muinfoRP, gammaRP] = plot_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, [1, 1, 1]);
+    % fig = figure("Name", sprintf("SSV Iter: %i", iter));
+    [muinfoRP, gammaRP] = plot_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, [0, 0, 1]);
     fprintf("Worst case mu-RP: %f, iter: %i\n", gammaRP, iter);
 end

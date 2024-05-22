@@ -1,4 +1,5 @@
 %% Init Model and weights
+close all; clear all;
 FIG_PATH = "./figures";
 if ~exist(FIG_PATH, "dir")
     mkdir(FIG_PATH);
@@ -8,6 +9,7 @@ init_robust_simulink();
 %% Load controller
 load("K_inf_controller.mat");
 load("K_lqr_controller.mat");
+K_lqr = K_lqr_ss;
 
 % K_inf closed loop
 K_sim = K_inf;
@@ -30,12 +32,12 @@ P_lqr_nom = P_lqr(Ie, Iw);
 t = 0:0.1:40;
 figure("Name", "Elev Inf nom");
 plotElevationStep(P_inf_nom, t);
-% figure("Name", "Elev LQR nom");
-% plotElevationStep(P_lqr_nom, t);
+figure("Name", "Elev LQR nom");
+plotElevationStep(P_lqr_nom, t);
 figure("Name", "Pitch Inf nom");
 plotPitchStep(P_inf_nom, t);
-% figure("Name", "Pitch LQR nom");
-% plotPitchStep(P_lqr_nom, t);
+figure("Name", "Pitch LQR nom");
+plotPitchStep(P_lqr_nom, t);
 pause(0.1);
 
 %% Worst case
@@ -43,6 +45,13 @@ pause(0.1);
 % Open loop
 [A_o, B_o, C_o, D_o] = linmod("robust_model");
 P_o = ss(A_o, B_o, C_o, D_o);
+
+N_inf = lft(P_o, K_inf);
+N_lqr = lft(P_o, K_lqr);
+fig = figure;
+plot_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, [1, 1, 1]);
+fig = figure;
+plot_ssv(N_lqr, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, [1, 1, 1]);
 
 [Delta_wc_inf, maxmu_inf, maxmuRS_inf] = getWorstCasePerturbation(P_o, K_inf, omega, RP_blk, Iz, Iv);
 [Delta_wc_lqr, maxmu_lqr, maxmuRS_lqr] = getWorstCasePerturbation(P_o, K_lqr_ss, omega, RP_blk, Iz, Iv);
