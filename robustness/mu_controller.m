@@ -256,7 +256,31 @@ end
 
 function [muinfoRP, gammaRP] = calculate_and_plot_ssv(P, K, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, iter)
     N_inf = lft(P, K);
-    % fig = figure("Name", sprintf("SSV Iter: %i", iter));
-    [muinfoRP, gammaRP] = plot_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk, [0, 0, 1]);
+    [u_muNP, u_muRS, u_muRP, muinfoRP] = calculate_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk);
+
+    fig = figure("Name", sprintf("SSV Iter: %i", iter));
+    whichToPlot = [1, 1, 1];
+  
+    hold on;
+    grid on;
+    legends = [];
+    if whichToPlot(1) == 1
+        plot(u_muRS);
+        legends = [legends, "RS"];
+    end
+    if whichToPlot(2) == 1
+        plot(u_muNP);
+        legends = [legends, "NP"];
+    end
+    if whichToPlot(3) == 1
+        plot(u_muRP);
+        legends = [legends, "RP"];
+    end
+    
+    legend(legends, "Interpreter", "latex");
+    xscale log;
+
+    worst_muRP = max(u_muRP.ResponseData(1, 1, :));
+    gammaRP = worst_muRP;
     fprintf("Worst case mu-RP: %f, iter: %i\n", gammaRP, iter);
 end

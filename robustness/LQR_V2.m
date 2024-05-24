@@ -74,29 +74,46 @@ A_int = [zeros(2, 2), eye(2), zeros(2, 4);
 B_int = [zeros(2, 2);
         B_new];
 
+A_int = [eye(2), zeros(2, size(A_int, 1));
+         B_int, A_int];
+
+B_int = [eye(2);
+        zeros(size(A_int, 1)-2, 2)];
+
 A_lqr = A_int;
 B_lqr = B_int;
-% Q = diag([1e1, 1e2, 1e3, 1e1, 1e3, 1e3, 1e1, 1e1]);
-% R = diag([1e2, 1e2]);
-% Q = diag([1e2, 1e2, 1e3, 1e1, 1e3, 1e2, 1e0, 1e0]);
-% R = diag([1e0, 1e0]);
-K_lqr = lqr(A_lqr, B_lqr, Q, R);
+% uf_int, ub_int, e_int, p_int, e, p, de, dp
+Q = diag([1e1, 1e1, 1e1, 1e2, 1e3, 1e1, 1e3, 1e3, 1e1, 1e1]);
+% duf, dub
+R = diag([1e2, 1e2]);
 
-% Feedforward ensure steady state 0 = ((A-BK+BKf)r
-K_lqr_no_int = K_lqr(:, 3:end);
+K_lqr = lqr(A_lqr, B_lqr, Q, R);
+K_f_lqr = K_lqr;
+
+% % Feedforward ensure steady state 0 = ((A-BK+BKf)r
+% K_lqr_no_int = K_lqr(:, 3:end);
 r_u = sym("r_u", "real");
+r_u_tilde = sym("r_u_tilde", "real");
 r_e = sym("r_e", "real");
 r_p = sym("r_p", "real");
 u_f_1 = sym("u_f_1", "real");
 u_f_2 = sym("u_f_2", "real");
 u_f = [u_f_1; u_f_2];
 
-r = [r_e; r_p; 0; 0; r_u; r_u];
-dx = (A_new-B_new*K_lqr_no_int)*r + B_new*u_f;
-eq = dx(3) == 0;
+int_e = sym("int_e", "real");
+int_p = sym("int_p", "real");
+
+r = [r_u_tilde; r_u_tilde; 0; 0; r_e; r_p; 0; 0; r_u; r_u];
+dx = (A_int-B_int*K_lqr)*r + B_int*u_f; % + B_int*K_lqr(:, 3:4)*-[int_e; int_p];
+% dx = [dx(1:2); dx(5:end)];
+eq = dx(7) == 0;
 r_u_sol = solve(eq, r_u);
 
 dx = subs(dx, r_u, r_u_sol);
+
+eq = dx(7) == 0;
+r_u_tilde_sol = solve(eq, r_u_tilde);
+dx = subs(dx, r_u_tilde, r_u_tilde_sol);
 
 eq = dx == 0;
 u_f_sol = solve(eq, u_f);
@@ -107,17 +124,17 @@ eq = subs(eq, u_f, u_f_sol);
 K_f_lqr = jacobian(u_f_sol, [r_e; r_p]);
 K_f_lqr = double(K_f_lqr);
 
-dx = (A_new - B_new*K_lqr_no_int)*[r_e; r_p; 0; 0; r_u_sol; r_u_sol] + B_new*K_f_lqr*[r_e; r_p];
+% dx = (A_new - B_new*K_lqr_no_int)*[r_e; r_p; 0; 0; r_u_sol; r_u_sol] + B_new*K_f_lqr*[r_e; r_p];
 
 K_f_lqr = [K_lqr(:, 1:2), K_f_lqr];
+K_f_lqr = zeros(size(K_f_lqr));
 
 %% Observer
 A_obs = A_new;
 B_obs = B_new;
 C_obs = C_new;
 
-% % % % r = 15;
-r = r_observer;
+r = 30;
 max_angle = 20*pi/180;
 p = zeros(1, 0);
 angles = linspace(-max_angle, max_angle, length(A_obs));
