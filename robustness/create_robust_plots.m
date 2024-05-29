@@ -2,6 +2,7 @@
 close all; clear all;
 
 external_monitor = 0;
+figs = {};
 
 std_dims = [50 800 500 400];
 legend_size = 10;
@@ -45,6 +46,7 @@ P_o = ss(A_o, B_o, C_o, D_o);
 %% Weights
 fprintf("Plot uncertainty and performance weights\n");
 fig = figure("Name", "Weights");
+figs = {figs, fig};
 weight_plot(W_perf_e, W_perf_p, W_perf_uf, W_act, p_Jp, W_noise_e, W_noise_p, W_ref_e, W_ref_p, omega)
 weight_dims = [std_dims(1:3), 300];
 set(fig, "renderer", "painters", "position", weight_dims, "PaperPositionMode", "auto");
@@ -52,6 +54,7 @@ exportgraphics(fig,"./figures/perf_weight.pdf",'ContentType','vector');
 %% SSV Plots
 fprintf("Plot SSV evolution for mu-controller\n");
 fig = figure("Name", "SSV comparison");
+figs = {figs, fig};
 hold on;
 grid on;
 xscale log;
@@ -76,6 +79,7 @@ fprintf("Plot SSV comparison for mu- and LQR controller\n");
 N_inf = lft(P_o, K_inf);
 N_lqr = lft(P_o, K_lqr);
 fig = figure("Name", "SSV LQR and mu");
+figs = {figs, fig};
 hold on;
 grid on;
 xscale log;
@@ -108,6 +112,7 @@ t = 0:0.1:20;
 step_dims = [std_dims(1:3), 500];
 
 fig = figure("Name", "Elevation Step Nom");
+figs = {figs, fig};
 plotElevationStep(P_inf_nom, t, "\mu", 0, 0, 1);
 plotElevationStep(P_lqr_nom, t, "LQR", 1, 0, 1);
 formatElevationRespFig("Nominal Elevation Step Response", 1);
@@ -117,6 +122,7 @@ exportgraphics(fig,"./figures/elev_step_nom.pdf",'ContentType','vector');
 
 
 fig = figure("Name", "Pitch Step Nom");
+figs = {figs, fig};
 plotPitchStep(P_inf_nom, t, "\mu", 0, 0, 1);
 plotPitchStep(P_lqr_nom, t, "LQR", 1, 0, 1);
 formatPitchRespFig("Nominal Pitch Step Response", 1);
@@ -136,6 +142,7 @@ P_inf_pert = lft(Delta_wc_inf, P_inf);
 P_lqr_pert = lft(Delta_wc_lqr, P_lqr);
 
 fig = figure("Name", "Elev perturbed");
+figs = {figs, fig};
 plotElevationStep(P_inf_pert, t, "\mu", 0, 0, 0);
 plotElevationStep(P_lqr_pert, t, "LQR", 1, 0, 0);
 formatElevationRespFig("Worst Case Elevation Step Response", 0);
@@ -146,6 +153,7 @@ exportgraphics(fig,"./figures/elev_step_wc.pdf",'ContentType','vector');
 
 
 fig = figure("Name", "Pitch perturbed");
+figs = {figs, fig};
 plotPitchStep(P_inf_pert, t, "\mu", 0, 0, 0);
 plotPitchStep(P_lqr_pert, t, "LQR", 1, 0, 0);
 formatPitchRespFig("Worst Case Pitch Step Response", 0);
@@ -169,6 +177,7 @@ N_lqr_rt = lft(P_o, K_lqr_rt);
 [muNP_inf, muRS_inf, muRP_inf] = calculate_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk);
 
 fig = figure("Name", "SSV retuned LQR and mu");
+figs = {figs, fig};
 hold on;
 grid on;
 xscale log;
@@ -196,6 +205,7 @@ exportgraphics(fig,"./figures/ssv_h_inf_vs_retuned_lqr.pdf",'ContentType','vecto
 % noise = 0;
 % 
 % fig = figure("Name", "Elevation Step Nom");
+% figs = {figs, fig};
 % plotElevationStep(P_inf_nom, t, "\mu", 0, noise);
 % plotElevationStep(P_lqr_rt_nom, t, "LQR", 1, noise);
 % formatElevationRespFig("Nominal Retuned LQR Step Response");
@@ -203,6 +213,7 @@ exportgraphics(fig,"./figures/ssv_h_inf_vs_retuned_lqr.pdf",'ContentType','vecto
 % exportgraphics(fig,"./figures/elev_step_nom_retuned.pdf",'ContentType','vector');
 % 
 % fig = figure("Name", "Pitch Step Nom");
+% figs = {figs, fig};
 % plotPitchStep(P_inf_nom, t, "\mu", 0, noise);
 % plotPitchStep(P_lqr_rt_nom, t, "LQR", 1, noise);
 % formatPitchRespFig("Nominal Retuned LQR Step Response");
@@ -229,6 +240,7 @@ noise = 0;
 plot_acutation = 1;
 
 fig = figure("Name", "Elev pert");
+figs = {figs, fig};
 plotElevationStep(P_inf_pert, t, "\mu", 0, noise, plot_acutation);
 plotElevationStep(P_lqr_rt_pert, t, "LQR", 1, noise, plot_acutation);
 formatElevationRespFig("Worst Case Retuned LQR", plot_acutation);
@@ -238,6 +250,7 @@ exportgraphics(fig,"./figures/elev_step_wc_retuned.pdf",'ContentType','vector');
 
 
 fig = figure("Name", "Pitch pert");
+figs = {figs, fig};
 plotPitchStep(P_inf_pert, t, "\mu", 0, noise, plot_acutation);
 plotPitchStep(P_lqr_rt_pert, t, "LQR", 1, noise, plot_acutation);
 formatPitchRespFig("Worst Case Retuned LQR", plot_acutation);
@@ -250,6 +263,7 @@ exportgraphics(fig,"./figures/pitch_step_wc_retuned.pdf",'ContentType','vector')
 fprintf("Plot worst case for retuned LQR with noise\n");
 noise = 1;
 fig = figure("Name", "Elev pert");
+figs = {figs, fig};
 plotElevationStep(P_inf_pert, t, "\mu", 0, noise, plot_acutation);
 plotElevationStep(P_lqr_rt_pert, t, "LQR", 1, noise, plot_acutation);
 formatElevationRespFig("Worst Case Retuned LQR with Noise", plot_acutation);
@@ -270,6 +284,16 @@ ylim([-20, 50]);
 set(fig, "renderer", "painters", "position", step_dims, "PaperPositionMode", "auto");
 exportgraphics(fig,"./figures/pitch_step_wc_retuned_noise.pdf",'ContentType','vector');
 
+%% Save Workspace
+% Save workspace so that the variables are available even using a different
+% MATLAB VERSION
+fig = -1;
+fname = mfilename;
+fpath = mfilename('fullpath');
+dpath = strrep(fpath, fname, '');
+dpath = strcat(dpath, "/generated");
+[status, msg, msgID] = mkdir(dpath);
+save(strcat(dpath,"/plot_workspace.mat"));
 
 
 %% Function definitions
