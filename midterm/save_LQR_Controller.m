@@ -1,18 +1,18 @@
 %% LQR shown in midterm
-% Q = diag([1e2, 1e2, 1e3, 1e1, 1e3, 1e2, 1e0, 1e0]);
-% R = diag([1e0, 1e0]);
-% r_observer = 15;
-% init_simulink();
-% 
-% [A, B, C, D] = linmod("LQR_controller");
-% K_lqr_ss = ss(A, B, C, D);
-% 
-% fname = mfilename;
-% fpath = mfilename('fullpath');
-% dpath = strrep(fpath, fname, '');
-% dpath = strcat(dpath, "/generated");
-% [status, msg, msgID] = mkdir(dpath);
-% save(strcat(dpath, "/K_lqr_controller.mat"), "K_lqr_ss");
+Q = diag([1e2, 1e2, 1e3, 1e1, 1e3, 1e2, 1e0, 1e0]);
+R = diag([1e0, 1e0]);
+r_observer = 15;
+init_simulink();
+
+[A, B, C, D] = linmod("LQR_controller");
+K_lqr_ss = ss(A, B, C, D);
+
+fname = mfilename;
+fpath = mfilename('fullpath');
+dpath = strrep(fpath, fname, '');
+dpath = strcat(dpath, "/generated");
+[status, msg, msgID] = mkdir(dpath);
+save(strcat(dpath, "/K_lqr_controller.mat"), "K_lqr_ss");
 
 %% Retuned LQR shown in final report
 clear all;
@@ -25,7 +25,7 @@ R = diag([3e1, 3e1]);
 % R = diag([1e1, 1e1]);
 % % Q = diag([1e0, 1e0, 1e2, 1e1, 1e3, 1e3, 1e2, 1e2]);
 % % R = diag([1e3, 1e3]);
-r_observer = 30;
+r_observer = 15;
 init_simulink();
 [A, B, C, D] = linmod("LQR_controller");
 

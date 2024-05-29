@@ -9,7 +9,9 @@ tau_act = 0.2;
 G_act = 1/(s*tau_act+1); % Used in simulink
 
 Je_inv = 1/M_alt(1, 1);
-Q_Jp = lftForMInv(M_alt(2, 2), 0.2);
+p_Jp = 0.2;
+Q_Jp = lftForMInv(M_alt(2, 2), p_Jp);
+p_Jp = tf(p_Jp);
 
 cutoff_freq_perf = 1e-2;
 max_e_deav = 0.2;
@@ -19,7 +21,8 @@ max_e_ref = 1;
 max_p_ref = deg2rad(45);
 W_perf_e = makeStepFilter(1/max_e_deav, cutoff_freq_perf, 1e-5);
 W_perf_p = makeStepFilter(1/max_p_deav, cutoff_freq_perf, 1e-5);
-W_perf_uf = tf(1/max_u);
+% W_perf_uf = tf(1/max_u);
+W_perf_uf = makeStepFilter(1/max_u, 1e1, 1/5);
 W_perf_ub = W_perf_uf;
 W_act = makeStepFilter(0.25, 2e1, 0.9);
 max_noise_e = 0.1;

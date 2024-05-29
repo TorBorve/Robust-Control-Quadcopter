@@ -6,6 +6,8 @@ function [muNP, muRS, muRP, muinfoRP] = calculate_ssv(N, omega, Iz, Ie, Iv, Iw, 
 
     muNP = svd(N_w(Ie, Iw));
     muNP = muNP(1, :, :);
+    % muNP = nan;
+    % muRS = nan;
 
     [muRP, muinfoRP] = mussv(N_w, RP_blk);
     muRP = muRP(1, 1, :);

@@ -1,21 +1,23 @@
 %% Calc settings
 clear all; close all;
-num_iter = 3;
-% Dscale_orders_seq = [1, 3, 2, 1;
-%                  1, 1, 2, 1];
-% num_iter = size(Dscale_orders_seq, 1);
+% num_iter = 4;
+Dscale_orders_seq = [0, 1, 2, 0;
+                     0, 2, 2, 3;
+                     0, 3, 3, 0;
+                     1, 1, 2, 0];
+num_iter = size(Dscale_orders_seq, 1);
 
-Dscale_orders_seq = [];
-for i1=0:4
-    for i2=0:4
-        for i3=0:4
-            for i4=0:4
-                Dscale_orders_seq = [Dscale_orders_seq;
-                                     i1, i2, i3, i4];
-            end
-        end
-    end
-end
+% Dscale_orders_seq = [];
+% for i1=0:4
+%     for i2=0:4
+%         for i3=0:4
+%             for i4=0:4
+%                 Dscale_orders_seq = [Dscale_orders_seq;
+%                                      i1, i2, i3, i4];
+%             end
+%         end
+%     end
+% end
 % external_monitor = 1;
 % 
 % std_dims = [50 800 600 500];
@@ -29,7 +31,7 @@ init_robust_simulink();
 
 %% Plot Weights
 fig = figure("Name", "Weights");
-weight_plot(W_perf_e, W_perf_p, W_perf_uf, W_act, W_noise_e, W_noise_p, W_ref_e, W_ref_p, omega)
+weight_plot(W_perf_e, W_perf_p, W_perf_uf, W_act, p_Jp, W_noise_e, W_noise_p, W_ref_e, W_ref_p, omega)
 % set(fig, "renderer", "painters", "position", std_dims, "PaperPositionMode", "auto");
 
 % exportgraphics(fig,"./figures/perf_weight.pdf",'ContentType','vector');
@@ -66,18 +68,19 @@ orders_best = [];
 for i=1:num_iter
     fprintf("\nDK-iteration %i\n", i);
     better_found = 0;
-    j_best = 1;
+    j_best = -1;
+    % for j=160:162
     % for j=1:size(Dscale_orders_seq, 1)
         K_inf = K_inf_best;
         muinfo = muinfo_best;
         N_inf = lft(P, K_inf);
         fprintf("Choose D scales\n");
-        % if exist("Dscale_orders_seq", "var") && size(Dscale_orders_seq, 1) >= i
-        %     Dscale_orders = Dscale_orders_seq(j, :);
-        % else
-        %     Dscale_orders = [-1, -1, -1, -1];
-        % end
-        Dscale_orders = [0, 0, 2, 0];
+        if exist("Dscale_orders_seq", "var") && size(Dscale_orders_seq, 1) >= i
+            Dscale_orders = Dscale_orders_seq(i, :);
+        else
+            Dscale_orders = [-1, -1, -1, -1];
+        end
+        % Dscale_orders = [0, 3, 3, 0];
         [Dl, Dr] = chooseDscales(muinfo, omega, Dscale_orders);
         P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
         fprintf("Find controller for D scaled plant\n");
@@ -86,8 +89,6 @@ for i=1:num_iter
             K_inf = K_iteration(P_D, nmeas, nctrl);
         catch e
             fprintf("[Error]: %s\n", e.message);
-            K_inf = K_inf_best;
-            muinfo = muinfo_best;
             continue;
             % break;
         end
@@ -103,9 +104,9 @@ for i=1:num_iter
             K_inf_best = K_inf;
             better_found = 1;
             j_best = j;
+            % orders_best = [orders_best;
+            %         Dscale_orders_seq(j_best, :)];
         end
-        muinfo = muinfo_best;
-        K_inf = K_inf_best;
     % end
     if better_found == 0
         break
@@ -115,7 +116,7 @@ for i=1:num_iter
     pause(0.1);
 end
 
-orders_best
+% orders_best
 fprintf("Saving results to file\n");
 saveControllerToFile(K_inf_best, K_inf_iters);
 fprintf("Best gammaRP = %f\n", gammaRP_best);
@@ -258,27 +259,27 @@ function [muinfoRP, gammaRP] = calculate_and_plot_ssv(P, K, Iz, Ie, Iv, Iw, RS_b
     N_inf = lft(P, K);
     [u_muNP, u_muRS, u_muRP, muinfoRP] = calculate_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk);
 
-    fig = figure("Name", sprintf("SSV Iter: %i", iter));
-    whichToPlot = [1, 1, 1];
-  
-    hold on;
-    grid on;
-    legends = [];
-    if whichToPlot(1) == 1
-        plot(u_muRS);
-        legends = [legends, "RS"];
-    end
-    if whichToPlot(2) == 1
-        plot(u_muNP);
-        legends = [legends, "NP"];
-    end
-    if whichToPlot(3) == 1
-        plot(u_muRP);
-        legends = [legends, "RP"];
-    end
-    
-    legend(legends, "Interpreter", "latex");
-    xscale log;
+    % fig = figure("Name", sprintf("SSV Iter: %i", iter));
+    % whichToPlot = [0, 0, 0];
+    % 
+    % hold on;
+    % grid on;
+    % legends = [];
+    % if whichToPlot(1) == 1
+    %     plot(u_muRS);
+    %     legends = [legends, "RS"];
+    % end
+    % if whichToPlot(2) == 1
+    %     plot(u_muNP);
+    %     legends = [legends, "NP"];
+    % end
+    % if whichToPlot(3) == 1
+    %     plot(u_muRP);
+    %     legends = [legends, "RP"];
+    % end
+    % 
+    % legend(legends, "Interpreter", "latex");
+    % xscale log;
 
     worst_muRP = max(u_muRP.ResponseData(1, 1, :));
     gammaRP = worst_muRP;
