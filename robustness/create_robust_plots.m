@@ -1,11 +1,12 @@
 %% Init Model and weights
 close all; clear all;
-external_monitor = 1;
+
+external_monitor = 0;
 
 std_dims = [50 800 500 400];
 legend_size = 10;
 title_size = 12;
-% error("Have same width on all figures");
+
 if external_monitor == 1
     std_dims(2) = 1200;
 end
@@ -17,10 +18,12 @@ end
 init_robust_simulink();
 
 %% Load controllers
+fprintf("Load controllers\n");
 load("K_inf_controller.mat");
 load("K_lqr_controller.mat");
 K_lqr = K_lqr_ss;
 
+fprintf("Extract closed loop system for the controllers\n");
 % K_inf closed loop
 K_sim = K_inf;
 [A, B, C, D] = linmod("robust_model_closed_loop");
@@ -40,15 +43,15 @@ P_lqr_nom = P_lqr(Ie, Iw);
 P_o = ss(A_o, B_o, C_o, D_o);
 
 %% Weights
+fprintf("Plot uncertainty and performance weights\n");
 fig = figure("Name", "Weights");
 weight_plot(W_perf_e, W_perf_p, W_perf_uf, W_act, p_Jp, W_noise_e, W_noise_p, W_ref_e, W_ref_p, omega)
 weight_dims = [std_dims(1:3), 300];
 set(fig, "renderer", "painters", "position", weight_dims, "PaperPositionMode", "auto");
 exportgraphics(fig,"./figures/perf_weight.pdf",'ContentType','vector');
 %% SSV Plots
-% Plot SSV for each iteration
-% % assert(size(K_inf_iters, 1) == 2);
-fig = figure;
+fprintf("Plot SSV evolution for mu-controller\n");
+fig = figure("Name", "SSV comparison");
 hold on;
 grid on;
 xscale log;
@@ -58,9 +61,6 @@ for i=1:size(K_inf_iters, 1)
     [muNP_infi, muRS_infi, muRP_infi] = calculate_ssv(N_infi, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk);
 
     line_style = line_style_iter(i);
-    % plot(omega, squeeze(muNP_infi.ResponseData), "Color", "#77AC30", "LineStyle", line_style, "DisplayName", sprintf("$NP_%i$", i));
-    % plot(omega, squeeze(muRS_infi.ResponseData), "Color", "#D95319", "LineStyle", line_style, "DisplayName", sprintf("$RS_%i$", i));
-    % plot(omega, squeeze(muRP_infi.ResponseData), "Color", "#0072BD", "LineStyle", line_style, "DisplayName", sprintf("$RP_%i$", i));
     plot(omega, squeeze(muRP_infi.ResponseData), "LineStyle", line_style, "DisplayName", sprintf("$RP_%i$", i-1));
 end
 legend("Interpreter", "latex", "FontSize", legend_size);
@@ -72,9 +72,10 @@ ssv_dims = [std_dims(1:3), 300];
 set(fig, "renderer", "painters", "position", ssv_dims, "PaperPositionMode", "auto");
 exportgraphics(fig,"./figures/ssv_h_inf.pdf",'ContentType','vector');
 
+fprintf("Plot SSV comparison for mu- and LQR controller\n");
 N_inf = lft(P_o, K_inf);
 N_lqr = lft(P_o, K_lqr);
-fig = figure;
+fig = figure("Name", "SSV LQR and mu");
 hold on;
 grid on;
 xscale log;
@@ -102,6 +103,7 @@ exportgraphics(fig,"./figures/ssv_h_inf_vs_lqr.pdf",'ContentType','vector');
 
 
 %% Step Responses
+fprintf("Simulate and plot nominal step responses for LQR and mu-controller\n");
 t = 0:0.1:20;
 step_dims = [std_dims(1:3), 500];
 
@@ -123,7 +125,7 @@ exportgraphics(fig,"./figures/pitch_step_nom.pdf",'ContentType','vector');
 pause(0.1);
 
 %% Worst case
-
+fprintf("Simulate and plot worst case perturbation\n");
 [Delta_wc_inf, maxmu_inf, maxmuRS_inf] = getWorstCasePerturbation(P_o, K_inf, omega, RP_blk, Iz, Iv, "RS");
 [Delta_wc_lqr, maxmu_lqr, maxmuRS_lqr] = getWorstCasePerturbation(P_o, K_lqr_ss, omega, RP_blk, Iz, Iv, "RS");
 
@@ -133,31 +135,26 @@ fprintf("Max muRS inf: %f,\nMax muRS lqr: %f\n", maxmuRS_inf, maxmuRS_lqr);
 P_inf_pert = lft(Delta_wc_inf, P_inf);
 P_lqr_pert = lft(Delta_wc_lqr, P_lqr);
 
-fig = figure("Name", "Elev pert");
+fig = figure("Name", "Elev perturbed");
 plotElevationStep(P_inf_pert, t, "\mu", 0, 0, 0);
 plotElevationStep(P_lqr_pert, t, "LQR", 1, 0, 0);
 formatElevationRespFig("Worst Case Elevation Step Response", 0);
-% subplot(2, 1, 1);
 ylim([-5, 6]);
-% subplot(2, 1, 2);
-% ylim([-50, 50]);
 half_step_dims = [std_dims(1:3), 250];
 set(fig, "renderer", "painters", "position", half_step_dims, "PaperPositionMode", "auto");
 exportgraphics(fig,"./figures/elev_step_wc.pdf",'ContentType','vector');
 
 
-fig = figure("Name", "Pitch pert");
+fig = figure("Name", "Pitch perturbed");
 plotPitchStep(P_inf_pert, t, "\mu", 0, 0, 0);
 plotPitchStep(P_lqr_pert, t, "LQR", 1, 0, 0);
 formatPitchRespFig("Worst Case Pitch Step Response", 0);
-% subplot(2, 1, 1);
 ylim([-45, 135]);
-% subplot(2, 1, 2);
-% ylim([-60, 120]);
 set(fig, "renderer", "painters", "position", half_step_dims, "PaperPositionMode", "auto");
 exportgraphics(fig,"./figures/pitch_step_wc.pdf",'ContentType','vector');
 
 %% Comparision with Retuned LQR
+fprintf("Comparing with retuned LQR\n");
 load("K_lqr_controller_retuned.mat");
 K_lqr_rt = K_lqr_ss_retuned;
 
@@ -166,11 +163,12 @@ K_sim = K_lqr_rt;
 [A, B, C, D] = linmod("robust_model_closed_loop");
 P_lqr_rt = ss(A, B, C, D);
 
+fprintf("Plot SSV for retuned LQR\n");
 N_lqr_rt = lft(P_o, K_lqr_rt);
 [muNP_lqr_rt, muRS_lqr_rt, muRP_lqr_rt] = calculate_ssv(N_lqr_rt, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk);
 [muNP_inf, muRS_inf, muRP_inf] = calculate_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk);
 
-fig = figure;
+fig = figure("Name", "SSV retuned LQR and mu");
 hold on;
 grid on;
 xscale log;
@@ -192,11 +190,11 @@ set(fig, "renderer", "painters", "position", ssv_dims, "PaperPositionMode", "aut
 exportgraphics(fig,"./figures/ssv_h_inf_vs_retuned_lqr.pdf",'ContentType','vector');
 
 %% Nominal Retuned
-
-P_lqr_rt_nom = P_lqr_rt(Ie, Iw);
-
-noise = 0;
-
+% Nominal response for retuned LQR. Not included in report.
+% P_lqr_rt_nom = P_lqr_rt(Ie, Iw);
+% 
+% noise = 0;
+% 
 % fig = figure("Name", "Elevation Step Nom");
 % plotElevationStep(P_inf_nom, t, "\mu", 0, noise);
 % plotElevationStep(P_lqr_rt_nom, t, "LQR", 1, noise);
@@ -214,16 +212,18 @@ noise = 0;
 
 
 %% Worst case retuned
-
+fprintf("Finding worst case perturbation for retuned LQR\n");
 [Delta_wc_inf, maxmuRP_inf, maxmuRS_inf] = getWorstCasePerturbation(P_o, K_inf, omega, RP_blk, Iz, Iv, "RP");
 [Delta_wc_lqr_rt, maxmuRP_lqr_rt, maxmuRS_lqr_rt] = getWorstCasePerturbation(P_o, K_lqr_rt, omega, RP_blk, Iz, Iv, "RP");
-Delta_wc_lqr_rt = Delta_wc_inf;
+Delta_wc_lqr_rt = Delta_wc_inf; % Use the same pertubation for comparison
 
 fprintf("Max muRP retuned LQR: %f\n", maxmuRP_lqr_rt);
 fprintf("Max muRS retuned LQR: %f\n", maxmuRS_lqr_rt);
 
 P_inf_pert = lft(Delta_wc_inf, P_inf);
 P_lqr_rt_pert = lft(Delta_wc_lqr_rt, P_lqr_rt);
+
+fprintf("Plot worst case for retuned LQR without noise\n");
 
 noise = 0;
 plot_acutation = 1;
@@ -232,10 +232,7 @@ fig = figure("Name", "Elev pert");
 plotElevationStep(P_inf_pert, t, "\mu", 0, noise, plot_acutation);
 plotElevationStep(P_lqr_rt_pert, t, "LQR", 1, noise, plot_acutation);
 formatElevationRespFig("Worst Case Retuned LQR", plot_acutation);
-% subplot(2, 1, 1);
-% ylim([-5, 6]);
-% subplot(2, 1, 2);
-% ylim([-50, 50]);
+
 set(fig, "renderer", "painters", "position", step_dims, "PaperPositionMode", "auto");
 exportgraphics(fig,"./figures/elev_step_wc_retuned.pdf",'ContentType','vector');
 
@@ -250,6 +247,7 @@ ylim([-10, 40]);
 set(fig, "renderer", "painters", "position", step_dims, "PaperPositionMode", "auto");
 exportgraphics(fig,"./figures/pitch_step_wc_retuned.pdf",'ContentType','vector');
 
+fprintf("Plot worst case for retuned LQR with noise\n");
 noise = 1;
 fig = figure("Name", "Elev pert");
 plotElevationStep(P_inf_pert, t, "\mu", 0, noise, plot_acutation);

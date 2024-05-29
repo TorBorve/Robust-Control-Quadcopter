@@ -1,4 +1,5 @@
 %% LQR shown in midterm
+fprintf("Find and save original LQR controller to file\n");
 Q = diag([1e2, 1e2, 1e3, 1e1, 1e3, 1e2, 1e0, 1e0]);
 R = diag([1e0, 1e0]);
 r_observer = 15;
@@ -16,15 +17,11 @@ save(strcat(dpath, "/K_lqr_controller.mat"), "K_lqr_ss");
 
 %% Retuned LQR shown in final report
 clear all;
-% Q = diag([1e2, 1e3, 1e3, 1e2, 1e2, 1e3, 1e2, 1e2]);
-% R = diag([1e2, 1e2]);
+fprintf("Find and save retuned LQR controller\n");
 
 Q = diag([1e2, 1e3, 1e3, 1e2, 1e2, 1e3, 1e1, 1e1]);
 R = diag([3e1, 3e1]);
-% Q = diag([1e3, 1e3, 1e3, 1e2, 1e4, 1e3, 1e1, 1e1]);
-% R = diag([1e1, 1e1]);
-% % Q = diag([1e0, 1e0, 1e2, 1e1, 1e3, 1e3, 1e2, 1e2]);
-% % R = diag([1e3, 1e3]);
+
 r_observer = 15;
 init_simulink();
 [A, B, C, D] = linmod("LQR_controller");

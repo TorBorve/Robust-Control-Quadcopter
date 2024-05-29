@@ -1,43 +1,20 @@
 %% Calc settings
 clear all; close all;
-% num_iter = 4;
+
+% num_iter = 5;
+
+% Orders which worked best
 Dscale_orders_seq = [0, 1, 2, 0;
                      0, 2, 2, 3;
                      0, 3, 3, 0;
                      1, 1, 2, 0];
 num_iter = size(Dscale_orders_seq, 1);
 
-% Dscale_orders_seq = [];
-% for i1=0:4
-%     for i2=0:4
-%         for i3=0:4
-%             for i4=0:4
-%                 Dscale_orders_seq = [Dscale_orders_seq;
-%                                      i1, i2, i3, i4];
-%             end
-%         end
-%     end
-% end
-% external_monitor = 1;
-% 
-% std_dims = [50 800 600 500];
-% if external_monitor == 1
-%     std_dims(2) = 1200;
-% end
-
 %% Init model and Weights
 init_robust_simulink();
 
-
-%% Plot Weights
-fig = figure("Name", "Weights");
-weight_plot(W_perf_e, W_perf_p, W_perf_uf, W_act, p_Jp, W_noise_e, W_noise_p, W_ref_e, W_ref_p, omega)
-% set(fig, "renderer", "painters", "position", std_dims, "PaperPositionMode", "auto");
-
-% exportgraphics(fig,"./figures/perf_weight.pdf",'ContentType','vector');
-pause(0.1);
-
 %% Model
+fprintf("Extract linear system with pertubations and disturbances\n");
 % Linear model
 [A_P, B_P, C_P, D_P] = linmod("robust_model");
 P = ss(A_P, B_P, C_P, D_P);
@@ -51,9 +28,9 @@ nv = size(Iv, 1);
 nw = size(Iw, 1);
 
 %% Start DK-iteration
-fprintf("Find nominal H_inf controller\n");
-K_inf = K_iteration_nominal(P, Ie, Iy, Iw, Iu);
-fprintf("Plot Info about nominal controller\n");
+fprintf("Find initial H_inf controller\n");
+K_inf = K_iteration_initial(P, Ie, Iy, Iw, Iu);
+fprintf("Plot Info about initial controller\n");
 
 [muinfo, gammaRP_nom] = calculate_and_plot_ssv(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, 0);
 pause(0.1);
@@ -63,60 +40,39 @@ K_inf_best = K_inf;
 muinfo_best = muinfo;
 gammaRP_best = gammaRP_nom;
 
-orders_best = [];
-
 for i=1:num_iter
     fprintf("\nDK-iteration %i\n", i);
-    better_found = 0;
-    j_best = -1;
-    % for j=160:162
-    % for j=1:size(Dscale_orders_seq, 1)
-        K_inf = K_inf_best;
-        muinfo = muinfo_best;
-        N_inf = lft(P, K_inf);
-        fprintf("Choose D scales\n");
-        if exist("Dscale_orders_seq", "var") && size(Dscale_orders_seq, 1) >= i
-            Dscale_orders = Dscale_orders_seq(i, :);
-        else
-            Dscale_orders = [-1, -1, -1, -1];
-        end
-        % Dscale_orders = [0, 3, 3, 0];
-        [Dl, Dr] = chooseDscales(muinfo, omega, Dscale_orders);
-        P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
-        fprintf("Find controller for D scaled plant\n");
-    
-        try
-            K_inf = K_iteration(P_D, nmeas, nctrl);
-        catch e
-            fprintf("[Error]: %s\n", e.message);
-            continue;
-            % break;
-        end
-    
-        fprintf("Plot Info about controller\n");
-        [muinfo, gammaRP] = calculate_and_plot_ssv(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, i);
-        
-        if gammaRP < gammaRP_best
-            fprintf("Better controller found\n");
-            K_inf_iters = [K_inf_iters ; {K_inf}];
-            gammaRP_best = gammaRP;
-            muinfo_best = muinfo;
-            K_inf_best = K_inf;
-            better_found = 1;
-            j_best = j;
-            % orders_best = [orders_best;
-            %         Dscale_orders_seq(j_best, :)];
-        end
-    % end
-    if better_found == 0
-        break
+    muinfo = muinfo_best;
+    fprintf("Choose D scales\n");
+    if exist("Dscale_orders_seq", "var") && size(Dscale_orders_seq, 1) >= i
+        Dscale_orders = Dscale_orders_seq(i, :);
+    else
+        Dscale_orders = [-1, -1, -1, -1];
     end
-    % orders_best = [orders_best;
-    %                 Dscale_orders_seq(j_best, :)];
+    [Dl, Dr] = chooseDscales(muinfo, omega, Dscale_orders);
+    P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl);
+    fprintf("Find controller for D scaled plant\n");
+
+    try
+        K_inf = K_iteration(P_D, nmeas, nctrl);
+    catch e
+        fprintf("[Error]: %s\n", e.message);
+        continue;
+    end
+
+    fprintf("Plot info about controller\n");
+    [muinfo, gammaRP] = calculate_and_plot_ssv(P, K_inf, Iz, Ie, Iv, Iw, RS_blk, RP_blk, omega, i);
+    
+    if gammaRP < gammaRP_best
+        fprintf("Better controller found\n");
+        K_inf_iters = [K_inf_iters ; {K_inf}];
+        gammaRP_best = gammaRP;
+        muinfo_best = muinfo;
+        K_inf_best = K_inf;
+    end
     pause(0.1);
 end
 
-% orders_best
 fprintf("Saving results to file\n");
 saveControllerToFile(K_inf_best, K_inf_iters);
 fprintf("Best gammaRP = %f\n", gammaRP_best);
@@ -143,15 +99,11 @@ function [Dl, Dr] = chooseDscales(muInfo, omega, orders)
     D_1 = Dl_w(1, 1);
     D_2 = Dl_w(2, 2);
     D_3 = Dl_w(3, 3);
-    % D_1 = Dl_w(1, 1)/D_perf;
-    % D_2 = Dl_w(2, 2)/D_perf;
-    % D_3 = Dl_w(3, 3)/D_perf;
 
     D_1_fit = fitAndChooseDScale(D_1, omega, orders(1));
     D_2_fit = fitAndChooseDScale(D_2, omega, orders(2));
     D_3_fit = fitAndChooseDScale(D_3, omega, orders(3));
     D_p_fit = fitAndChooseDScale(D_perf, omega, orders(4));
-    % D_p_fit = tf(1);
 
     Dl = [D_1_fit, 0, 0, 0, 0, 0, 0;
           0, D_2_fit, 0, 0, 0, 0, 0;
@@ -229,12 +181,12 @@ function P_D = DscaleP(P, Dl, Dr, nz, ne, nmeas, nw, nv, nctrl)
                  zeros(nctrl, nv+nw), eye(nctrl)];
 end
 
-function K_inf = K_iteration_nominal(P, Ie, Iy, Iw, Iu)
+function K_inf = K_iteration_initial(P, Ie, Iy, Iw, Iu)
     nmeas = size(Iy, 1);
     nctrl = size(Iu, 1);
     
     
-    P_nom = P([Ie;Iy], [Iw;Iu]);
+    % P_nom = P([Ie;Iy], [Iw;Iu]);
     P_nom = P;
     options = hinfsynOptions("Display", "off", "Method", "RIC");
     [K_inf, N_inf_unused, gamma, info] = hinfsyn(P_nom, nmeas, nctrl, options); %, ...
@@ -259,27 +211,27 @@ function [muinfoRP, gammaRP] = calculate_and_plot_ssv(P, K, Iz, Ie, Iv, Iw, RS_b
     N_inf = lft(P, K);
     [u_muNP, u_muRS, u_muRP, muinfoRP] = calculate_ssv(N_inf, omega, Iz, Ie, Iv, Iw, RS_blk, RP_blk);
 
-    % fig = figure("Name", sprintf("SSV Iter: %i", iter));
-    % whichToPlot = [0, 0, 0];
-    % 
-    % hold on;
-    % grid on;
-    % legends = [];
-    % if whichToPlot(1) == 1
-    %     plot(u_muRS);
-    %     legends = [legends, "RS"];
-    % end
-    % if whichToPlot(2) == 1
-    %     plot(u_muNP);
-    %     legends = [legends, "NP"];
-    % end
-    % if whichToPlot(3) == 1
-    %     plot(u_muRP);
-    %     legends = [legends, "RP"];
-    % end
-    % 
-    % legend(legends, "Interpreter", "latex");
-    % xscale log;
+    fig = figure("Name", sprintf("SSV Iter: %i", iter));
+    whichToPlot = [1, 1, 1];
+
+    hold on;
+    grid on;
+    legends = [];
+    if whichToPlot(1) == 1
+        plot(u_muRS);
+        legends = [legends, "RS"];
+    end
+    if whichToPlot(2) == 1
+        plot(u_muNP);
+        legends = [legends, "NP"];
+    end
+    if whichToPlot(3) == 1
+        plot(u_muRP);
+        legends = [legends, "RP"];
+    end
+
+    legend(legends, "Interpreter", "latex");
+    xscale log;
 
     worst_muRP = max(u_muRP.ResponseData(1, 1, :));
     gammaRP = worst_muRP;
