@@ -2,6 +2,7 @@
 
 Project in the course Robust Control & Convex Optimization at ETH Zurich.
 
+Read `Robust_Control_Helicopter_Final.pdf` for more details.
 
 ## Run
 The code is written in MATLAB and only verified for MATLAB 2023b, if you have another MATLAB version it might not work as expected.
